@@ -1,0 +1,99 @@
+1、      交易所和交易对 - exchange代表这个对象，如exchange.GetTicker()获取的将是这个交易所-交易对的行情ticker。
+         平台和交易品种   第一个：exchanges[0] 第二个：exchanges[1]
+
+2、      获取行情  通常的行情接口有：获取行情ticker、获取深度depth、获取K线records、获取成交记录trades
+            GetTicker: 例:{"Info:{}, "High":5226.69, "Low":5086.37,"Sell":5210.63, "Buy":5208.5, "Last":5208.51, "Volume":1703.1245, "OpenInterest":0, "Time":1554884195976}
+                {
+                    Info    : {...},             // 请求交易所接口后，交易所接口应答的原始数据，回测时无此属性
+                    High    : 1000,              // 最高价，如果交易所接口没有提供24小时最高价则使用卖一价格填充
+                    Low     : 500,               // 最低价，如果交易所接口没有提供24小时最低价则使用买一价格填充
+                    Sell    : 900,               // 卖一价
+                    Buy     : 899,               // 买一价
+                    Last    : 900,               // 最后成交价
+                    Volume  : 10000000,          // 最近成交量，原则上现货成交量单位为交易币种(baseCurrency)，期货成交量单位为合约张数。如果交易所接口没有提供此类数据则使用交易所接口现有的数据填充，例如可能为计价币（quoteCurrency）为单位的成交量
+                    Time    : 1567736576000      // 毫秒级别时间戳
+                }
+
+            GetDepth:
+
+                {
+                    "Info":null,
+                    "Asks":[
+                        {"Price":5866.38,"Amount":0.068644},
+                        {"Price":5866.39,"Amount":0.263985},
+                        ......
+                        ]
+                    "Bids":[
+                        {"Price":5865.13,"Amount":0.001898},
+                        {"Price":5865,"Amount":0.085575},
+                        ......
+                        ],
+                    "Time":1530241857399
+                }
+                我想获取当前卖二价，可以这么写代码:
+                    def main():
+                        depth = exchange.GetDepth()
+                        price = depth["Asks"][1]["Price"]
+                        Log("卖二价为:", price)
+
+3、      获取K线:    exchange.GetRecords(PERIOD_M1)  交易所.((API) (时间))
+            GetRecords:
+                [
+                    {"Time":1526616000000,"Open":7995,"High":8067.65,"Low":7986.6,"Close":8027.22,"Volume":9444676.27669432},
+                    {"Time":1526619600000,"Open":8019.03,"High":8049.99,"Low":7982.78,"Close":8027,"Volume":5354251.80804935},
+                    {"Time":1526623200000,"Open":8027.01,"High":8036.41,"Low":7955.24,"Close":7955.39,"Volume":6659842.42025361},
+                    ......
+                ]
+
+4、      获取账户进行交易:
+            GetAccount:
+                {"Stocks":0.38594816,"FrozenStocks":0,"Balance":542.858308,"FrozenBalance":0,"Info":{}}。
+                其中Stocks是交易对的交易货币可用余额，
+                FrozenStocks是未成交订单的冻结余额，
+                Balance是计价货币的可用额，
+                FrozenBalance是冻结余额。
+                如交易对是BTC_USDT，则Stocks指的是BTC，Balance指的是USDT
+                交易账户中其它币种的信息在Info字段中
+5、      Buy 下买:     Price为-1，Amount为下单价值，如exchange.Buy(-1, 0.5),交易对是ETH_BTC，则代表市价买入0.5BTC的ETH
+            #一个达到相应价格就买入的例子:
+            while True:
+                ticker = exchange.GetTicker()
+                price = ticker.Sell
+                if price >= 7000:
+                    exchange.Buy(_N(price + 5, 2), 1, 'BTC-USDT')
+                    break
+
+            Sleep(3000)  # Sleep3000ms
+            Log('done')
+6、      Sell 下卖单:       参数和Buy相同。市价单的参数意义不同，市价卖单如exchange.Sell(-1, 0.2)，代表市价卖出0.2ETH
+            GetOrder 获取订单:   调用方式exchange.GetOrder(OrderId),OrderId为订单id
+                {
+                    "Id":125723661, //订单id
+                    "Amount":0.01, //订单数量
+                    "Price":7000, //订单价格
+                    "DealAmount":0, //已成交数量
+                    "AvgPrice":0, //成交均价
+                    "Status":0, // 0:未完全成交, 1:已成交, 2:已撤单
+                    "Type":1,// 订单类型，0:买单, 1:卖单
+                    "ContractType":"",//合约类型，用于期货交易
+                    "Info":{} //交易所返回原始信息
+
+                }
+
+
+
+7、      期货和永续合约:    SetContractType 设置合约
+         GetPosition 持仓:
+                exchange.SetContractType("this_week")     #设置为当周合约
+                position = exchange.GetPosition() #exchange.GetPosition()，获取当前持仓信息
+                if position.length>0 :                #特别要注意引用前要先判断position长度再引用，否则会出错
+                    Log(
+                        "Amount:", position[0].Amount,
+                        "FrozenAmount:", position[0].FrozenAmount,
+                        "Price:",position[0].Price,
+                        "Profit:", position[0].Profit,
+                        "Type:", position[0].Type,
+                        "ContractType:", position[0].ContractType
+                        )
+
+
